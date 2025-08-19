@@ -1,10 +1,177 @@
-<!doctype html>
-<html>
-  <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>Wallet Demo</title>
-  </head>
-  <body style="font-family:system-ui;max-width:720px;margin:40px auto;padding:0 16px">
-    <h1>Wallet Demo ✅</h1>
-    <p>ถ้าคุณเห็นหน้านี้ แปลว่า GitHub Pages พร้อมแล้ว</p>
-  </body>
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Wallet Demo</title>
+  <style>
+    :root{--bd:#e5e7eb;--fg:#111827;--muted:#6b7280;--bg:#f8fafc;--white:#fff;--blue:#2563eb;--green:#059669;--red:#dc2626;}
+    *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans Thai",Arial;background:var(--bg);color:var(--fg)}
+    .shell{max-width:920px;margin:0 auto;padding:16px 16px 96px}
+    .card{background:var(--white);border:1px solid var(--bd);border-radius:16px;padding:16px;box-shadow:0 1px 2px rgba(0,0,0,.03);margin-bottom:12px}
+    .row{display:flex;gap:8px;flex-wrap:wrap}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .btn{border:1px solid var(--bd);background:var(--white);border-radius:12px;padding:10px 14px;cursor:pointer}
+    .btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+    .btn.success{background:var(--green);border-color:var(--green);color:#fff}
+    .input{width:100%;border:1px solid var(--bd);border-radius:12px;padding:10px 12px}
+    .label{display:block;color:var(--muted);font-size:12px;margin:6px 0 4px}
+    .balance{font-size:32px;font-weight:800}
+    .tx{display:flex;align-items:center;justify-content:space-between;border-top:1px dashed var(--bd);padding:10px 0}
+    .tx:first-child{border-top:none}.tx-amt{font-weight:700}.pos{color:var(--green)}.neg{color:var(--red)}
+    .tabs{position:fixed;left:0;right:0;bottom:12px;margin:0 auto;max-width:920px;display:grid;grid-template-columns:repeat(6,1fr);gap:8px;padding:0 16px}
+    .tab{background:var(--white);border:1px solid var(--bd);border-radius:12px;padding:8px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer}
+    .tab.active{outline:2px solid var(--blue)} .muted{color:var(--muted);font-size:13px}
+    @media(max-width:560px){.grid2{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="shell" id="app">Loading…</div>
+  <script>
+    const STORAGE_KEY="wallet_demo_local";
+    const fmt=(n)=>new Intl.NumberFormat("th-TH",{style:"currency",currency:"THB"}).format(n);
+    const uid=()=>Math.random().toString(36).slice(2,10);
+    const now=()=>new Date().toISOString();
+    const seed=[{id:uid(),type:"topup",amount:500,note:"เติมครั้งแรก",createdAt:now()},
+                {id:uid(),type:"pay",amount:-120,note:"Coffee Shop",createdAt:now()},
+                {id:uid(),type:"transfer",amount:-220,note:"Rent split to @mook",createdAt:now()}];
+
+    let state=(()=>{try{const s=localStorage.getItem(STORAGE_KEY);
+      return s?JSON.parse(s):{user:{id:"user_001",name:"You"},balance:160,transactions:seed};}
+      catch{return {user:{id:"user_001",name:"You"},balance:160,transactions:seed};}})();
+
+    const save=()=>localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
+    const addTx=(tx)=>{state={...state,balance:+(state.balance+tx.amount).toFixed(2),
+      transactions:[{...tx,id:uid(),createdAt:now()},...state.transactions]};save();render();};
+    const moneyFrom=(v)=>{const n=parseFloat(String(v).replace(/[^\d.-]/g,""));return Number.isFinite(n)?n:0;};
+    const route=(to)=>{state.route=to;render();};
+    const txIcon=(t)=>t.type==="topup"?"➕":t.type==="pay"?"💳":t.type==="transfer"?"🔁":"📄";
+
+    const viewHome=()=>{const {balance,transactions}=state;return `
+      <div class="card"><h3>ยอดเงินในวอลเล็ต</h3>
+        <div class="balance">${fmt(balance)}</div>
+        <div class="row" style="margin-top:12px">
+          <button class="btn" data-go="pay">💳 จ่ายเงิน</button>
+          <button class="btn" data-go="scan">📷 สแกน</button>
+          <button class="btn" data-go="transfer">🔁 โอน</button>
+          <button class="btn" data-go="topup">➕ เติมเงิน</button>
+        </div>
+      </div>
+      <div class="card"><h3>รายการล่าสุด</h3>
+        ${transactions.slice(0,8).map(t=>`
+          <div class="tx">
+            <div><div><b>${txIcon(t)}</b> ${t.note||t.type}</div>
+            <div class="muted">${new Date(t.createdAt).toLocaleString("th-TH")}</div></div>
+            <div class="tx-amt ${t.amount>=0?"pos":"neg"}">${t.amount>=0?"+":""}${fmt(t.amount)}</div>
+          </div>`).join("")}
+      </div>`;};
+
+    const viewPay=()=>`
+      <div class="card"><h3>ชำระเงิน (จำลอง)</h3>
+        <label class="label">ร้านค้า</label><input class="input" id="pay_merchant" value="ร้านสะดวกซื้อ"/>
+        <label class="label">จำนวนเงิน (THB)</label><input class="input" id="pay_amount" type="number" value="100" inputmode="decimal"/>
+        <div class="row" style="margin-top:10px"><button class="btn" data-go="home">กลับ</button>
+        <button class="btn primary" id="pay_submit">ยืนยันการชำระ</button></div></div>`;
+
+    const viewTransfer=()=>`
+      <div class="card"><h3>โอนเงิน (จำลอง)</h3>
+        <label class="label">ปลายทาง (@username หรือ เบอร์)</label><input class="input" id="tr_to" value="@friend"/>
+        <label class="label">จำนวนเงิน (THB)</label><input class="input" id="tr_amount" type="number" value="50" inputmode="decimal"/>
+        <label class="label">บันทึกช่วยจำ (ออปชัน)</label><input class="input" id="tr_note" value="ค่าอาหารกลางวัน"/>
+        <div class="row" style="margin-top:10px"><button class="btn" data-go="home">กลับ</button>
+        <button class="btn primary" id="tr_submit">ยืนยันการโอน</button></div></div>`;
+
+    const viewTopup=()=>`
+      <div class="card"><h3>เติมเงินเข้าวอลเล็ต (จำลอง)</h3>
+        <label class="label">จำนวนเงิน (THB)</label><input class="input" id="tu_amount" type="number" value="300" inputmode="decimal"/>
+        <label class="label">แหล่งที่มา</label><input class="input" id="tu_src" value="บัตรเดบิต"/>
+        <div class="row" style="margin-top:10px"><button class="btn" data-go="home">กลับ</button>
+        <button class="btn success" id="tu_submit">เติมเงิน</button></div></div>`;
+
+    const viewScan=()=>`
+      <div class="card"><h3>สแกน QR (จำลอง)</h3>
+        <div class="muted">ตัวอย่าง: <code>alipay://pay?m=Coffee&amt=120</code></div>
+        <label class="label">ข้อความโค้ด</label><input class="input" id="sc_code" placeholder="alipay://pay?m=Coffee&amt=120"/>
+        <div class="grid2" style="margin-top:8px">
+          <div><label class="label">ร้านค้า</label><input class="input" id="sc_merchant" placeholder="Coffee Shop"/></div>
+          <div><label class="label">จำนวนเงิน (THB)</label><input class="input" id="sc_amount" type="number" inputmode="decimal" placeholder="120"/></div>
+        </div>
+        <div class="row" style="margin-top:10px"><button class="btn" id="sc_decode">ถอดรหัส</button>
+        <button class="btn primary" id="sc_pay">ชำระเงิน</button><button class="btn" data-go="home">กลับ</button></div>
+      </div>`;
+
+    const viewProfile=()=>{const {user,balance,transactions}=state;
+      const totalIn=transactions.filter(t=>t.amount>0).reduce((s,t)=>s+t.amount,0);
+      const totalOut=transactions.filter(t=>t.amount<0).reduce((s,t)=>s+Math.abs(t.amount),0);
+      return `
+      <div class="card"><h3>บัญชีของฉัน</h3>
+        <div class="row" style="align-items:center">
+          <div style="width:56px;height:56px;border-radius:50%;background:#dbeafe;display:flex;align-items:center;justify-content:center;font-size:24px">💠</div>
+          <div><div style="font-weight:700">${user.name}</div><div class="muted">User ID: ${user.id}</div></div>
+        </div>
+        <div class="grid2" style="margin-top:12px">
+          <div><div class="muted">ยอดเงินปัจจุบัน</div><div class="balance">${fmt(balance)}</div></div>
+          <div><div class="muted">รายรับ/รายจ่ายรวม</div><div><b class="pos">${fmt(totalIn)}</b> / <b class="neg">-${fmt(totalOut)}</b></div></div>
+        </div>
+        <div class="row" style="margin-top:10px"><button class="btn" id="reset_demo">รีเซ็ตเดโม</button></div>
+      </div>
+      <div class="card"><h3>ประวัติรายการทั้งหมด</h3>
+        ${transactions.map(t=>`
+          <div class="tx">
+            <div><div><b>${txIcon(t)}</b> ${t.note||t.type}</div>
+            <div class="muted">${new Date(t.createdAt).toLocaleString("th-TH")}</div></div>
+            <div class="tx-amt ${t.amount>=0?"pos":"neg"}">${t.amount>=0?"+":""}${fmt(t.amount)}</div>
+          </div>`).join("")}
+      </div>`;};
+
+    const toolbar=(active)=>{const items=[["home","🏠","หน้าแรก"],["pay","💳","จ่ายเงิน"],["transfer","🔁","โอน"],["topup","➕","เติมเงิน"],["scan","📷","สแกน"],["profile","👤","ฉัน"]];
+      return `<div class="tabs">${items.map(([r,i,l])=>`<button class="tab ${active===r?"active":""}" data-go="${r}"><span>${i}</span><span style="font-size:12px">${l}</span></button>`).join("")}</div>`;};
+
+    function render(){
+      const el=document.getElementById("app");
+      const r=state.route||"home";
+      let v=""; if(r==="home")v=viewHome(); else if(r==="pay")v=viewPay(); else if(r==="transfer")v=viewTransfer();
+      else if(r==="topup")v=viewTopup(); else if(r==="scan")v=viewScan(); else if(r==="profile")v=viewProfile();
+      el.innerHTML=`${v}${toolbar(r)}`;
+
+      el.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>route(b.getAttribute("data-go")));
+
+      const pay=document.getElementById("pay_submit");
+      if(pay) pay.onclick=()=>{const m=document.getElementById("pay_merchant").value.trim()||"ร้านค้า";
+        const amt=Math.max(0,moneyFrom(document.getElementById("pay_amount").value));
+        if(!amt)return alert("กรุณากรอกจำนวนเงิน"); if(amt>state.balance)return alert("ยอดเงินไม่เพียงพอ");
+        addTx({type:"pay",amount:-amt,note:m});};
+
+      const tr=document.getElementById("tr_submit");
+      if(tr) tr.onclick=()=>{const to=document.getElementById("tr_to").value.trim()||"@user";
+        const amt=Math.max(0,moneyFrom(document.getElementById("tr_amount").value));
+        const note=document.getElementById("tr_note").value.trim()||"Transfer";
+        if(!amt)return alert("กรุณากรอกจำนวนเงิน"); if(amt>state.balance)return alert("ยอดเงินไม่เพียงพอ");
+        addTx({type:"transfer",amount:-amt,note:`${note} to ${to}`});};
+
+      const tu=document.getElementById("tu_submit");
+      if(tu) tu.onclick=()=>{const src=document.getElementById("tu_src").value.trim()||"บัตรเดบิต";
+        const amt=Math.max(0,moneyFrom(document.getElementById("tu_amount").value));
+        if(!amt)return alert("กรุณากรอกจำนวนเงิน"); addTx({type:"topup",amount:+amt,note:`Top-up via ${src}`});};
+
+      const scD=document.getElementById("sc_decode");
+      if(scD) scD.onclick=()=>{try{const u=new URL(document.getElementById("sc_code").value.trim());
+        document.getElementById("sc_merchant").value=u.searchParams.get("m")||"";
+        document.getElementById("sc_amount").value=u.searchParams.get("amt")||"";}
+        catch{alert("รูปแบบไม่ถูกต้อง (ตัวอย่าง: alipay://pay?m=Coffee&amt=120)");}};
+
+      const scP=document.getElementById("sc_pay");
+      if(scP) scP.onclick=()=>{const m=document.getElementById("sc_merchant").value.trim()||"QR Payment";
+        const amt=Math.max(0,moneyFrom(document.getElementById("sc_amount").value));
+        if(!amt)return alert("กรุณากรอกจำนวนเงิน"); if(amt>state.balance)return alert("ยอดเงินไม่เพียงพอ");
+        addTx({type:"pay",amount:-amt,note:m});};
+
+      const rs=document.getElementById("reset_demo");
+      if(rs) rs.onclick=()=>{localStorage.removeItem(STORAGE_KEY);
+        state={user:{id:"user_001",name:"You"},balance:160,transactions:seed}; save(); render();};
+    }
+    document.title="Wallet Demo";
+    render();
+  </script>
+</body>
 </html>
+
